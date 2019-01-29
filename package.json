@@ -1,0 +1,40 @@
+{
+  "name": "drugwars",
+  "version": "0.1.0",
+  "description": "DrugWars API",
+  "homepage": "https://drugwars.io",
+  "license": "MIT",
+  "engines": {
+    "node": "8.11.3"
+  },
+  "scripts": {
+    "start": "node start.js",
+    "lint": "eslint 'helpers/**/*.js'",
+    "prettier": "prettier 'src/**/*.js' --list-different",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.2",
+    "dsteem": "^0.10.1",
+    "express": "^4.16.3",
+    "redis": "^2.8.0"
+  },
+  "devDependencies": {
+    "babel-eslint": "^8.0.3",
+    "eslint": "^5.3.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-config-prettier": "^2.10.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-prettier": "^2.6.2",
+    "jest": "^23.5.0",
+    "prettier": "^1.14.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bonustrack/drugwars.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bonustrack/drugwars/issues"
+  }
+}
