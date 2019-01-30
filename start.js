@@ -64,17 +64,30 @@ const check = setInterval(() => {
       console.log('Start process daily jackpot', currentDate);
       processDailyJackpot().then(() => {
         lastDailyJackpot = currentDate;
-        isProcessing = false;
         console.log('Process daily jackpot done', lastDailyJackpot);
+        setLastJackpotDate(lastDailyJackpot).then(() => {
+          isReady = true;
+          isProcessing = false;
+        }).catch(err => {
+          console.error('Set last daily jackpot failed', err);
+        });
       });
-    }
-    if (currentHours !== lastHourlyJackpot) {
+    } else if (currentHours !== lastHourlyJackpot) {
       isProcessing = true;
       console.log('Start process hourly jackpot', currentHours);
       processHourlyJackpot().then(() => {
-        lastHourlyJackpot = currentHours;
-        isProcessing = false;
-        console.log('Process hourly jackpot done', lastHourlyJackpot);
+        isProcessing = true;
+        console.log('Start process daily jackpot', currentDate);
+        processDailyJackpot().then(() => {
+          lastHourlyJackpot = currentHours;
+          console.log('Process hourly jackpot done', lastHourlyJackpot);
+          setLastJackpotHours(lastHourlyJackpot).then(() => {
+            isReady = true;
+            isProcessing = false;
+          }).catch(err => {
+            console.error('Set last hourly jackpot failed', err);
+          });
+        });
       });
     }
   }
