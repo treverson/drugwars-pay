@@ -1,90 +1,81 @@
 const express = require('express');
 const Promise = require('bluebird');
-const http = require('http');
-const client = require('./helpers/client');
-const redis = require('./helpers/redis');
+const {
+  getLastJackpotDate,
+  setLastJackpotDate,
+  getLastJackpotHours,
+  setLastJackpotHours,
+  processDailyJackpot,
+  processHourlyJackpot,
+} = require('./helpers/utils');
 
 const app = express();
 const port = process.env.PORT || 4000;
 const server = app.listen(port, () => console.log(`Listening on ${port}`));
 
-let inProcess = false;
-let isInit = false;
-let lastJackpotDate = false;
-let lastHours = new Date().getUTCHours();
-
-// redis.flushall();
-
-const getLastJackpotDate = () => redis.getAsync('last_jackpot_date');
-
-const setLastJackpotDate = (date) => redis.setAsync('last_jackpot_date', date);
-
-/** Process daily jackpot payments */
-const processJackpot = () => Promise.delay(5000);
-
-/** Get last jackpot date */
-const init = () => new Promise((resolve, reject) => {
-  getLastJackpotDate().then(date => {
-    if (date) {
-      // console.log('Last jackpot date is', date);
-      resolve(parseInt(date));
-    } else {
-      const lastDate = new Date().getUTCDate() - 1;
-      setLastJackpotDate(lastDate).then(result => {
-        // console.log('Set last jackpot date to', lastDate, result);
-        resolve(lastDate);
-      }).catch(err => {
-        console.error('Set last jackpot date failed', err);
-        reject();
-      });
-    }
-  }).catch(err => {
-    console.error('Get last jackpot date failed', err);
-    reject();
-  });
-});
-
-console.log('Start jackpot process');
-
-init().then(date => {
-  lastJackpotDate = date;
-  isInit = true;
-  console.log('Init done with last jackpot date', lastJackpotDate);
-}).catch(err => {
-  console.error('Init failed', err);
-});
-
-const stream = setInterval(() => {
-  const currentDate = new Date().getUTCDate();
-  const currentHours = new Date().getUTCHours();
-  if (isInit && lastHours !== currentHours) {
-    lastHours = currentHours;
-    console.log('Current date is', currentDate, 'last jackpot date is', lastJackpotDate, 'current hours', currentHours);
-  }
-  if (isInit && lastJackpotDate !== currentDate && !inProcess) {
-    inProcess = true;
-    console.log('Processing jackpot', lastJackpotDate, currentDate);
-    processJackpot().then(() => {
-      console.log('Jackpot payments sent');
-      setLastJackpotDate(currentDate).then(result => {
-        console.log('Set last jackpot date to', currentDate, result);
-        lastJackpotDate = currentDate;
-        inProcess = false;
-      }).catch(err => {
-        console.error('Set last jackpot date failed', err);
-      });
-    }).catch(err => {
-      console.error('Process jackpot failed', err);
-    });
-  }
-}, 10000);
-
-/** Prevent free dyno to sleep */
-const heartbeat = setInterval(() => {
-  http.get('http://drugwars.herokuapp.com');
-  console.log('Heartbeat');
-}, 1000 * 60);
-
 process.on('uncaughtException', function (err) {
   console.error('Uncaught exception', err);
 });
+
+/** Prevent server idle */
+const heartbeat = setInterval(() => {
+  console.log('Heartbeat');
+}, 1000 * 60 * 5);
+
+let isReady = false;
+let isProcessing = false;
+let lastDailyJackpot = null;
+let lastHourlyJackpot = null;
+
+/** Get or set last jackpots date and hours */
+Promise.all([
+  getLastJackpotDate(),
+  getLastJackpotHours(),
+]).then(jackpots => {
+  if (jackpots[0] && jackpots[1]) {
+    lastDailyJackpot = parseInt(jackpots[0]);
+    lastHourlyJackpot = parseInt(jackpots[1]);
+    isReady = true;
+  } else {
+    lastDailyJackpot = new Date().getUTCDate() - 1;
+    lastHourlyJackpot = new Date().getUTCHours() - 1;
+    Promise.all([
+      setLastJackpotDate(lastDailyJackpot),
+      setLastJackpotHours(lastHourlyJackpot),
+    ]).then(() => {
+      isReady = true;
+    }).catch(err => {
+      console.error('Set last jackpots failed', err);
+    });
+  }
+}).catch(err => {
+  console.error('Get last jackpots failed', err);
+});
+
+/** Check for date or hours change to process jackpot */
+const check = setInterval(() => {
+  if (isReady && !isProcessing) {
+    const currentDate = new Date().getUTCDate();
+    const currentHours = new Date().getUTCHours();
+    console.log('Last daily jackpot was', lastDailyJackpot);
+    console.log('Last hourly jackpot was', lastHourlyJackpot);
+    if (currentDate !== lastDailyJackpot) {
+      isProcessing = true;
+      console.log('Start process daily jackpot', currentDate);
+      processDailyJackpot().then(() => {
+        lastDailyJackpot = currentDate;
+        isProcessing = false;
+        console.log('Process daily jackpot done', lastDailyJackpot);
+      });
+    }
+    if (currentHours !== lastHourlyJackpot) {
+      isProcessing = true;
+      console.log('Start process hourly jackpot', currentHours);
+      processHourlyJackpot().then(() => {
+        lastHourlyJackpot = currentHours;
+        isProcessing = false;
+        console.log('Process hourly jackpot done', lastHourlyJackpot);
+      });
+    }
+  }
+}, 1000 * 60 * 10);
