@@ -1,5 +1,6 @@
 const express = require('express');
 const Promise = require('bluebird');
+const http = require('http');
 const client = require('./helpers/client');
 const redis = require('./helpers/redis');
 
@@ -12,7 +13,7 @@ let isInit = false;
 let lastJackpotDate = false;
 let lastHours = new Date().getUTCHours();
 
-redis.flushall();
+// redis.flushall();
 
 const getLastJackpotDate = () => redis.getAsync('last_jackpot_date');
 
@@ -77,3 +78,13 @@ const stream = setInterval(() => {
     });
   }
 }, 10000);
+
+/** Prevent free dyno to sleep */
+const heartbeat = setInterval(() => {
+  http.get('http://drugwars.herokuapp.com');
+  console.log('Heartbeat');
+}, 1000 * 60);
+
+process.on('uncaughtException', function (err) {
+  console.error('Uncaught exception', err);
+});
