@@ -17,11 +17,6 @@ process.on('uncaughtException', function (err) {
   console.error('Uncaught exception', err);
 });
 
-/** Prevent server idle */
-const heartbeat = setInterval(() => {
-  console.log('Heartbeat');
-}, 1000 * 60 * 5);
-
 let isReady = false;
 let isProcessing = false;
 let lastDailyJackpot = null;
