@@ -1,10 +1,10 @@
 const express = require('express');
 const Promise = require('bluebird');
 const {
-  getLastJackpotDate,
-  setLastJackpotDate,
-  getLastJackpotHours,
-  setLastJackpotHours,
+  getLastDailyJackpot,
+  setLastDailyJackpot,
+  getLastHourlyJackpot,
+  setLastHourlyJackpot,
   processDailyJackpot,
   processHourlyJackpot,
 } = require('./helpers/utils');
@@ -29,21 +29,23 @@ let lastHourlyJackpot = null;
 
 /** Get or set last jackpots date and hours */
 Promise.all([
-  getLastJackpotDate(),
-  getLastJackpotHours(),
+  getLastDailyJackpot(),
+  getLastHourlyJackpot(),
 ]).then(jackpots => {
   if (jackpots[0] && jackpots[1]) {
     lastDailyJackpot = parseInt(jackpots[0]);
     lastHourlyJackpot = parseInt(jackpots[1]);
     isReady = true;
+    console.log('Ready');
   } else {
     lastDailyJackpot = new Date().getUTCDate() - 1;
     lastHourlyJackpot = new Date().getUTCHours() - 1;
     Promise.all([
-      setLastJackpotDate(lastDailyJackpot),
-      setLastJackpotHours(lastHourlyJackpot),
+      setLastDailyJackpot(lastDailyJackpot),
+      setLastHourlyJackpot(lastHourlyJackpot),
     ]).then(() => {
       isReady = true;
+      console.log('Ready');
     }).catch(err => {
       console.error('Set last jackpots failed', err);
     });
@@ -55,40 +57,39 @@ Promise.all([
 /** Check for date or hours change to process jackpot */
 const check = setInterval(() => {
   if (isReady && !isProcessing) {
+    console.log('...');
     const currentDate = new Date().getUTCDate();
     const currentHours = new Date().getUTCHours();
-    console.log('Last daily jackpot was', lastDailyJackpot);
-    console.log('Last hourly jackpot was', lastHourlyJackpot);
+    // console.log('daily-pot: Last daily jackpot was on', lastDailyJackpot);
+    // console.log('hourly-pot: Last hourly jackpot was on', lastHourlyJackpot);
     if (currentDate !== lastDailyJackpot) {
       isProcessing = true;
-      console.log('Start process daily jackpot', currentDate);
+      console.log('daily-pot: 1/3 Start payment process', currentDate);
       processDailyJackpot().then(() => {
         lastDailyJackpot = currentDate;
-        console.log('Process daily jackpot done', lastDailyJackpot);
-        setLastJackpotDate(lastDailyJackpot).then(() => {
+        console.log('daily-pot: 2/3 Payments done', lastDailyJackpot);
+        setLastDailyJackpot(lastDailyJackpot).then(() => {
           isReady = true;
           isProcessing = false;
+          console.log('daily-pot: 3/3 Last daily jackpot set on db', lastDailyJackpot);
         }).catch(err => {
-          console.error('Set last daily jackpot failed', err);
+          console.error('daily-pot: Set last daily jackpot failed, action required', err);
         });
       });
     } else if (currentHours !== lastHourlyJackpot) {
       isProcessing = true;
-      console.log('Start process hourly jackpot', currentHours);
+      console.log('hourly-pot: 1/3 Start payment process', currentHours);
       processHourlyJackpot().then(() => {
-        isProcessing = true;
-        console.log('Start process daily jackpot', currentDate);
-        processDailyJackpot().then(() => {
-          lastHourlyJackpot = currentHours;
-          console.log('Process hourly jackpot done', lastHourlyJackpot);
-          setLastJackpotHours(lastHourlyJackpot).then(() => {
-            isReady = true;
-            isProcessing = false;
-          }).catch(err => {
-            console.error('Set last hourly jackpot failed', err);
-          });
+        lastHourlyJackpot = currentHours;
+        console.log('hourly-pot: 2/3 Payments done', lastHourlyJackpot);
+        setLastHourlyJackpot(lastHourlyJackpot).then(() => {
+          isReady = true;
+          isProcessing = false;
+          console.log('hourly-pot: 3/3 Last hourly jackpot set on db', lastHourlyJackpot);
+        }).catch(err => {
+          console.error('hourly-pot: Set last hourly jackpot failed, action required', err);
         });
       });
     }
   }
-}, 1000 * 60 * 10);
+}, 1000 * 60 * 5);

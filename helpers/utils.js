@@ -2,25 +2,25 @@ const Promise = require('bluebird');
 const redis = require('./redis');
 const client = require('./client');
 
-redis.flushall();
+// redis.flushall();
 
-const getLastJackpotDate = () => redis.getAsync('last_jackpot_date');
+const getLastDailyJackpot = () => redis.getAsync('last_daily_jackpot');
 
-const setLastJackpotDate = (date) => redis.setAsync('last_jackpot_date', date);
+const setLastDailyJackpot = (date) => redis.setAsync('last_daily_jackpot', date);
 
-const getLastJackpotHours = () => redis.getAsync('last_jackpot_hours');
+const getLastHourlyJackpot = () => redis.getAsync('last_hourly_jackpot');
 
-const setLastJackpotHours = (hours) => redis.setAsync('last_jackpot_hours', hours);
+const setLastHourlyJackpot = (hours) => redis.setAsync('last_hourly_jackpot', hours);
 
-const processDailyJackpot = () => Promise.delay(5000);
+const processDailyJackpot = () => Promise.delay(10000);
 
 const processHourlyJackpot = () => Promise.delay(5000);
 
 module.exports = {
-  getLastJackpotDate,
-  setLastJackpotDate,
-  getLastJackpotHours,
-  setLastJackpotHours,
+  getLastDailyJackpot,
+  setLastDailyJackpot,
+  getLastHourlyJackpot,
+  setLastHourlyJackpot,
   processDailyJackpot,
   processHourlyJackpot,
 };
