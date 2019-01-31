@@ -12,9 +12,9 @@ const getLastHourlyJackpot = () => redis.getAsync('last_hourly_jackpot');
 
 const setLastHourlyJackpot = (hours) => redis.setAsync('last_hourly_jackpot', hours);
 
-const processDailyJackpot = () => Promise.delay(10000);
+const processDailyJackpot = () => Promise.delay(1000 * 60 * 2);
 
-const processHourlyJackpot = () => Promise.delay(5000);
+const processHourlyJackpot = () => Promise.delay(1000 * 60 * 2);
 
 module.exports = {
   getLastDailyJackpot,
