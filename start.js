@@ -33,8 +33,8 @@ Promise.all([
     isReady = true;
     console.log('Ready');
   } else {
-    lastDailyJackpot = new Date().getUTCDate() - 1;
-    lastHourlyJackpot = new Date().getUTCHours() - 1;
+    lastDailyJackpot = new Date().getUTCDate();
+    lastHourlyJackpot = new Date().getUTCHours();
     Promise.all([
       setLastDailyJackpot(lastDailyJackpot),
       setLastHourlyJackpot(lastHourlyJackpot),
