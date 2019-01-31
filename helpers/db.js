@@ -1,4 +1,9 @@
 const mysql = require('mysql');
+const Pool = require('mysql/lib/Pool');
+const Connection = require('mysql/lib/Connection');
+const Promise = require('bluebird');
+
+Promise.promisifyAll([Pool, Connection]);
 
 const db = mysql.createPool({
   host: process.env.MYSQL_HOST,
