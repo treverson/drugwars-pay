@@ -6,8 +6,8 @@ const client = require('./client');
 
 const username = process.env.STEEM_USERNAME;
 const privateKey = process.env.STEEM_WIF;
-const pay = process.env.PAYMENT || false;
-const payPercent = process.env.PAYMENT_PERCENT || 1;
+const pay = parseInt(process.env.PAYMENT) || 0;
+const payPercent = parseFloat(process.env.PAYMENT_PERCENT) || 1;
 const memo = 'Here is your cut';
 
 // redis.flushall();
