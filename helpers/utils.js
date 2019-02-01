@@ -7,8 +7,10 @@ const client = require('./client');
 const username = process.env.STEEM_USERNAME;
 const privateKey = process.env.STEEM_WIF;
 const pay = parseInt(process.env.PAYMENT) || 0;
-const payPercent = parseFloat(process.env.PAYMENT_PERCENT) || 1;
-const memo = 'Here is your cut';
+const payPercentProd = parseFloat(process.env.PAYMENT_PERCENT_PROD) || 1;
+const payPercentBurn = parseFloat(process.env.PAYMENT_PERCENT_BURN) || 1;
+const memoProd = 'Here is your cut';
+const memoBurn = 'Got that for you';
 
 // redis.flushall();
 
@@ -28,7 +30,7 @@ const processProdPayment = () => {
       db.queryAsync(query),
       client.database.getAccounts([username]),
     ]).then(result => {
-      const totalAmount = parseFloat(result[1][0].balance) / 100 * payPercent;
+      const totalAmount = parseFloat(result[1][0].balance) / 100 * payPercentProd;
       const totalProd = result[0][1][0].totalProd;
       const ops = [];
       result[0][0].forEach(user => {
@@ -38,7 +40,7 @@ const processProdPayment = () => {
             from: username,
             to: user.name,
             amount: `${amount} STEEM`,
-            memo,
+            memo: memoProd,
           }]);
         }
       });
@@ -61,7 +63,46 @@ const processProdPayment = () => {
   });
 };
 
-const processBurnPayment = () => Promise.delay(100);
+const processBurnPayment = () => {
+  return new Promise((resolve, reject) => {
+    const query = 'SELECT * FROM heist_pool; \n\
+      SELECT SUM(saved_drugs) AS totalBurn FROM heist_pool';
+    Promise.all([
+      db.queryAsync(query),
+      client.database.getAccounts([username]),
+    ]).then(result => {
+      const totalAmount = parseFloat(result[1][0].balance) / 100 * payPercentBurn;
+      const totalBurn = result[0][1][0].totalBurn;
+      const ops = [];
+      result[0][0].forEach(user => {
+        const amount = parseFloat(totalAmount / totalBurn * user.saved_drugs).toFixed(3);
+        if (amount >= 0.001 && user.name) {
+          ops.push(['transfer', {
+            from: username,
+            to: user.name,
+            amount: `${amount} STEEM`,
+            memo: memoBurn,
+          }]);
+        }
+      });
+      if (pay) {
+        client.broadcast.sendOperations(ops, PrivateKey.fromString(privateKey)).then(result => {
+          console.log('burn-pool: Broadcast transfers done', result);
+          resolve();
+        }).catch(err => {
+          console.error('burn-pool: Broadcast transfers failed', err);
+          reject();
+        });
+      } else {
+        console.log('burn-pool: Payment disabled');
+        resolve();
+      }
+    }).catch(err => {
+      console.error('burn-pool: Process loading data failed', err);
+      reject();
+    });
+  });
+};
 
 module.exports = {
   getLastProdPayment,
