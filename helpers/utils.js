@@ -81,22 +81,35 @@ const processPayments = () => {
         json_metadata: JSON.stringify({}),
       }]];
 
-      /** Broadcast transfers and post */
       if (pay) {
+        /** Broadcast transfers */
         client.broadcast.sendOperations(ops, PrivateKey.fromString(privateKey)).then(result => {
           console.log('Broadcast transfers done', result);
+
+          /** Broadcast post */
           client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
-            console.log('Broadcast article done', result);
-            /** TODO clear heist table */
-            resolve();
+            console.log('Broadcast post done', result);
+
+            /** Clear table heist */
+            db.queryAsync('TRUNCATE TABLE heist').then(result => {
+              console.log('Clear table done');
+              resolve();
+
+            }).catch((e) => {
+              console.error('Clear table heist failed', e);
+              reject();
+            })
+
           }).catch(err => {
-            console.error('Broadcast article failed', err);
+            console.error('Broadcast post failed', err);
             reject();
           });
+
         }).catch(err => {
           console.error('Broadcast transfers failed', err);
           reject();
         });
+
       } else {
         console.log('Payment disabled');
         resolve();
