@@ -24,8 +24,8 @@ const setLastBurnPayment = (hours) => redis.setAsync('last_burn_payment', hours)
 
 const processProdPayment = () => {
   return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM `character` ORDER BY drug_production_rate DESC; \n\
-      SELECT SUM(drug_production_rate) AS totalProd FROM `character`';
+    const query = 'SELECT * FROM users ORDER BY drug_production_rate DESC; \n\
+      SELECT SUM(drug_production_rate) AS totalProd FROM users';
     Promise.all([
       db.queryAsync(query),
       client.database.getAccounts([username]),
@@ -91,8 +91,8 @@ const processProdPayment = () => {
 
 const processBurnPayment = () => {
   return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM heist_pool ORDER BY saved_drugs DESC; \n\
-      SELECT SUM(saved_drugs) AS totalBurn FROM heist_pool';
+    const query = 'SELECT * FROM heist ORDER BY drugs DESC; \n\
+      SELECT SUM(drugs) AS totalBurn FROM heist';
     Promise.all([
       db.queryAsync(query),
       client.database.getAccounts([username]),
@@ -101,7 +101,7 @@ const processBurnPayment = () => {
       const totalBurn = result[0][1][0].totalBurn;
       const ops = [];
       result[0][0].forEach(user => {
-        const amount = parseFloat(totalAmount / totalBurn * user.saved_drugs).toFixed(3);
+        const amount = parseFloat(totalAmount / totalBurn * user.drugs).toFixed(3);
         if (amount >= 0.001 && user.name) {
           ops.push(['transfer', {
             from: username,
