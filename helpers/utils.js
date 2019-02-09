@@ -9,8 +9,8 @@ const privateKey = process.env.STEEM_WIF;
 const pay = parseInt(process.env.PAYMENT) || 0;
 const payPercentProd = parseFloat(process.env.PAYMENT_PERCENT_PROD) || 1;
 const payPercentBurn = parseFloat(process.env.PAYMENT_PERCENT_BURN) || 1;
-const memoProd = 'Here is your cut';
-const memoBurn = 'Got that for you';
+const memoProd = 'Here is your cut based on your drug production';
+const memoBurn = 'Heist! We got that for you';
 
 // redis.flushall();
 
@@ -33,13 +33,15 @@ const processPayments = () => {
       let body = '';
 
       /** Create transfer ops based on prod rate */
-      body += '\n\nHere is the drug production rate payroll:\n\n';
+      body += '\n\n#### Here is the drug production rate payroll:\n\n';
       const totalPotProd = parseFloat(result[1][0].balance) / 100 * payPercentProd;
       const totalProd = result[0][1][0].totalProd;
+      let i = 0;
       result[0][0].forEach(user => {
         const amount = parseFloat(totalPotProd / totalProd * user.drug_production_rate).toFixed(3);
         if (amount >= 0.001) {
-          body += `@${user.username} +${amount} STEEM \n`;
+          i++;
+          body += `${i} @${user.username} +${amount} STEEM \n`;
           ops.push(['transfer', {
             from: username,
             to: user.username,
@@ -50,13 +52,15 @@ const processPayments = () => {
       });
 
       /** Create transfer ops based on heist */
-      body += '\n\nHere is the heist payroll:\n\n';
+      body += '\n\n#### Here is the heist payroll:\n\n';
       const totalBurnProd = parseFloat(result[1][0].balance) / 100 * payPercentBurn;
       const totalBurn = result[0][3][0].totalBurn;
+      i = 0;
       result[0][2].forEach(user => {
         const amount = parseFloat(totalBurnProd / totalBurn * user.drugs).toFixed(3);
         if (amount >= 0.001 && user.username) {
-          body += `@${user.username} +${amount} STEEM \n`;
+          i++;
+          body += `${i} @${user.username} +${amount} STEEM \n`;
           ops.push(['transfer', {
             from: username,
             to: user.username,
@@ -72,7 +76,7 @@ const processPayments = () => {
         parent_permlink: 'drugwars',
         author: username,
         permlink: `drugwars-pay-${new Date().getTime()}`,
-        title: 'Daily payroll',
+        title: 'DrugWars daily payroll',
         body,
         json_metadata: JSON.stringify({}),
       }]];
@@ -83,6 +87,7 @@ const processPayments = () => {
           console.log('Broadcast transfers done', result);
           client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
             console.log('Broadcast article done', result);
+            /** TODO clear heist table */
             resolve();
           }).catch(err => {
             console.error('Broadcast article failed', err);
