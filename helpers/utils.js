@@ -14,144 +14,98 @@ const memoBurn = 'Got that for you';
 
 // redis.flushall();
 
-const getLastProdPayment = () => redis.getAsync('last_prod_payment');
+const getLastPayment = () => redis.getAsync('last_payment');
 
-const setLastProdPayment = (date) => redis.setAsync('last_prod_payment', date);
+const setLastPayment = (date) => redis.setAsync('last_payment', date);
 
-const getLastBurnPayment = () => redis.getAsync('last_burn_payment');
-
-const setLastBurnPayment = (hours) => redis.setAsync('last_burn_payment', hours);
-
-const processProdPayment = () => {
+const processPayments = () => {
   return new Promise((resolve, reject) => {
     const query = 'SELECT * FROM users ORDER BY drug_production_rate DESC; \n\
-      SELECT SUM(drug_production_rate) AS totalProd FROM users';
+      SELECT SUM(drug_production_rate) AS totalProd FROM users; \n\
+      SELECT * FROM heist ORDER BY drugs DESC; \n\
+      SELECT SUM(drugs) AS totalBurn FROM heist';
+
     Promise.all([
       db.queryAsync(query),
       client.database.getAccounts([username]),
     ]).then(result => {
-      const totalAmount = parseFloat(result[1][0].balance) / 100 * payPercentProd;
-      const totalProd = result[0][1][0].totalProd;
       const ops = [];
+      let body = '';
+
+      /** Create transfer ops based on prod rate */
+      body += '\n\nHere is the drug production rate payroll:\n\n';
+      const totalPotProd = parseFloat(result[1][0].balance) / 100 * payPercentProd;
+      const totalProd = result[0][1][0].totalProd;
       result[0][0].forEach(user => {
-        const amount = parseFloat(totalAmount / totalProd * user.drug_production_rate).toFixed(3);
+        const amount = parseFloat(totalPotProd / totalProd * user.drug_production_rate).toFixed(3);
         if (amount >= 0.001) {
+          body += `@${user.username} +${amount} STEEM \n`;
           ops.push(['transfer', {
             from: username,
-            to: user.name,
+            to: user.username,
             amount: `${amount} STEEM`,
             memo: memoProd,
           }]);
         }
       });
-      let post = null;
-      if (ops.length > 0) {
-        let body = 'Here is the drug production rate payroll: \n\n';
-        ops.forEach((op, i) => {
-          body += `${i + 1}. @${op[1].to} +${op[1].amount} \n`;
-        });
-        body += '\nBest';
-        post = [['comment', {
-          parent_author: '',
-          parent_permlink: 'drugwars',
-          author: username,
-          permlink: `prod-pay-${new Date().getTime()}`,
-          title: 'Daily drug production rate payroll',
-          body,
-          json_metadata: JSON.stringify({}),
-        }]];
-      }
-      if (pay) {
-        client.broadcast.sendOperations(ops, PrivateKey.fromString(privateKey)).then(result => {
-          console.log('prod-pool: Broadcast transfers done', result);
-          if (post) {
-            client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
-              console.log('prod-pool: Broadcast article done', result);
-              resolve();
-            }).catch(err => {
-              console.error('prod-pool: Broadcast article failed', err);
-              reject();
-            });
-          }
-          resolve();
-        }).catch(err => {
-          console.error('prod-pool: Broadcast transfers failed', err);
-          reject();
-        });
-      } else {
-        console.log('prod-pool: Payment disabled');
-        resolve();
-      }
-    }).catch(err => {
-      console.error('prod-pool: Process loading data failed', err);
-      reject();
-    });
-  });
-};
 
-const processBurnPayment = () => {
-  return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM heist ORDER BY drugs DESC; \n\
-      SELECT SUM(drugs) AS totalBurn FROM heist';
-    Promise.all([
-      db.queryAsync(query),
-      client.database.getAccounts([username]),
-    ]).then(result => {
-      const totalAmount = parseFloat(result[1][0].balance) / 100 * payPercentBurn;
-      const totalBurn = result[0][1][0].totalBurn;
-      const ops = [];
-      result[0][0].forEach(user => {
-        const amount = parseFloat(totalAmount / totalBurn * user.drugs).toFixed(3);
-        if (amount >= 0.001 && user.name) {
+      /** Create transfer ops based on heist */
+      body += '\n\nHere is the heist payroll:\n\n';
+      const totalBurnProd = parseFloat(result[1][0].balance) / 100 * payPercentBurn;
+      const totalBurn = result[0][3][0].totalBurn;
+      result[0][2].forEach(user => {
+        const amount = parseFloat(totalBurnProd / totalBurn * user.drugs).toFixed(3);
+        if (amount >= 0.001 && user.username) {
+          body += `@${user.username} +${amount} STEEM \n`;
           ops.push(['transfer', {
             from: username,
-            to: user.name,
+            to: user.username,
             amount: `${amount} STEEM`,
             memo: memoBurn,
           }]);
         }
       });
-      let post = null;
-      if (ops.length > 0) {
-        let body = 'Here is the burn drugs payroll: \n\n';
-        ops.forEach((op, i) => {
-          body += `${i + 1}. @${op[1].to} +${op[1].amount} \n`;
-        });
-        body += '\nBest';
-        post = [['comment', {
-          parent_author: '',
-          parent_permlink: 'drugwars',
-          author: username,
-          permlink: `burn-pay-${new Date().getTime()}`,
-          title: 'Daily burn drugs payroll',
-          body,
-          json_metadata: JSON.stringify({}),
-        }]];
-      }
+
+      /** Create post op */
+      const post = [['comment', {
+        parent_author: '',
+        parent_permlink: 'drugwars',
+        author: username,
+        permlink: `drugwars-pay-${new Date().getTime()}`,
+        title: 'Daily payroll',
+        body,
+        json_metadata: JSON.stringify({}),
+      }]];
+
+      /** Broadcast transfers and post */
       if (pay) {
         client.broadcast.sendOperations(ops, PrivateKey.fromString(privateKey)).then(result => {
-          console.log('burn-pool: Broadcast transfers done', result);
-          resolve();
+          console.log('Broadcast transfers done', result);
+          client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
+            console.log('Broadcast article done', result);
+            resolve();
+          }).catch(err => {
+            console.error('Broadcast article failed', err);
+            reject();
+          });
         }).catch(err => {
-          console.error('burn-pool: Broadcast transfers failed', err);
+          console.error('Broadcast transfers failed', err);
           reject();
         });
       } else {
-        console.log('burn-pool: Payment disabled');
+        console.log('Payment disabled');
         resolve();
       }
+
     }).catch(err => {
-      console.error('burn-pool: Process loading data failed', err);
+      console.error('Process loading data failed', err);
       reject();
     });
   });
 };
 
 module.exports = {
-  getLastProdPayment,
-  setLastProdPayment,
-  getLastBurnPayment,
-  setLastBurnPayment,
-  processProdPayment,
-  processBurnPayment,
+  getLastPayment,
+  setLastPayment,
+  processPayments,
 };
