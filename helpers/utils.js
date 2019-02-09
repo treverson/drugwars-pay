@@ -41,7 +41,7 @@ const processPayments = () => {
         const amount = parseFloat(totalPotProd / totalProd * user.drug_production_rate).toFixed(3);
         if (amount >= 0.001) {
           i++;
-          body += `${i} @${user.username} +${amount} STEEM \n`;
+          body += `${i}. @${user.username} +${amount} STEEM \n`;
           ops.push(['transfer', {
             from: username,
             to: user.username,
@@ -60,7 +60,7 @@ const processPayments = () => {
         const amount = parseFloat(totalBurnProd / totalBurn * user.drugs).toFixed(3);
         if (amount >= 0.001 && user.username) {
           i++;
-          body += `${i} @${user.username} +${amount} STEEM \n`;
+          body += `${i}. @${user.username} +${amount} STEEM \n`;
           ops.push(['transfer', {
             from: username,
             to: user.username,
