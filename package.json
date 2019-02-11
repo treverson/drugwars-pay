@@ -1,7 +1,6 @@
 {
-  "name": "drugwars",
+  "name": "drugwars-pay",
   "version": "0.1.0",
-  "description": "DrugWars API",
   "homepage": "https://drugwars.io",
   "license": "MIT",
   "engines": {
@@ -28,14 +27,14 @@
     "eslint-config-prettier": "^2.10.0",
     "eslint-plugin-import": "^2.14.0",
     "eslint-plugin-prettier": "^2.6.2",
-    "jest": "^23.5.0",
+    "jest": "^24.1.0",
     "prettier": "^1.14.2"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bonustrack/drugwars.git"
+    "url": "https://github.com/FutureShockco/drugwars-pay.git"
   },
   "bugs": {
-    "url": "https://github.com/bonustrack/drugwars/issues"
+    "url": "https://github.com/FutureShockco/drugwars-pay/issues"
   }
 }
