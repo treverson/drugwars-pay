@@ -96,7 +96,7 @@ const processPayments = () => new Promise((resolve, reject) => {
 });
 
 const processQueue = () => new Promise((resolve, reject) => {
-  const query = 'SELECT * FROM payments WHERE paid = ? ORDER BY id ASC LIMIT ?';
+  const query = 'SELECT * FROM payments WHERE paid = ? ORDER BY id DESC LIMIT ?';
   db.queryAsync(query, [0, maxOpsPerTx]).then(payments => {
 
     if (payments && payments.length > 0) {
