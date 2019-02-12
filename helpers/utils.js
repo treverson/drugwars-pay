@@ -29,7 +29,8 @@ const processPayments = () => {
       db.queryAsync(query),
       client.database.getAccounts([username]),
     ]).then(result => {
-      const ops = [];
+      const daily = [];
+      const heist = [];
       let body = '';
 
       /** Create transfer ops based on prod rate */
@@ -42,7 +43,7 @@ const processPayments = () => {
         if (amount >= 0.001) {
           i++;
           body += `${i}. @${user.username} +${amount} STEEM \n`;
-          ops.push(['transfer', {
+          daily.push(['transfer', {
             from: username,
             to: user.username,
             amount: `${amount} STEEM`,
@@ -61,7 +62,7 @@ const processPayments = () => {
         if (amount >= 0.001 && user.username) {
           i++;
           body += `${i}. @${user.username} +${amount} STEEM \n`;
-          ops.push(['transfer', {
+          heist.push(['transfer', {
             from: username,
             to: user.username,
             amount: `${amount} STEEM`,
@@ -83,22 +84,31 @@ const processPayments = () => {
 
       if (pay) {
         /** Broadcast transfers */
-        client.broadcast.sendOperations(ops, PrivateKey.fromString(privateKey)).then(result => {
-          console.log('Broadcast transfers done', result);
+        client.broadcast.sendOperations(daily, PrivateKey.fromString(privateKey)).then(result => {
+          console.log('Broadcast daily transfers done', result);
 
-          /** Broadcast post */
-          client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
-            console.log('Broadcast post done', result);
+          /** Broadcast transfers */
+          client.broadcast.sendOperations(heist, PrivateKey.fromString(privateKey)).then(result => {
+            console.log('Broadcast heist transfers done', result);
 
-            /** Clear table heist */
-            db.queryAsync('TRUNCATE TABLE heist').then(result => {
-              console.log('Clear table done');
-              resolve();
+            /** Broadcast post */
+            client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
+              console.log('Broadcast post done', result);
 
-            }).catch((e) => {
-              console.error('Clear table heist failed', e);
+              /** Clear table heist */
+              db.queryAsync('TRUNCATE TABLE heist').then(result => {
+                console.log('Clear table done');
+                resolve();
+
+              }).catch((e) => {
+                console.error('Clear table heist failed', e);
+                reject();
+              })
+
+            }).catch(err => {
+              console.error('Broadcast post failed', err);
               reject();
-            })
+            });
 
           }).catch(err => {
             console.error('Broadcast post failed', err);
