@@ -1,4 +1,5 @@
 const express = require('express');
+const Promise = require('bluebird');
 const {
   getLastPayment,
   setLastPayment,
@@ -69,7 +70,7 @@ start();
 /** Process pending payments queue then wait 5 sec */
 const processQueueLoop = () => {
   processQueue().then(
-    () => Promise.delay(5000).then(
+    () => Promise.delay(10000).then(
       () => processQueueLoop()
     ));
 };
