@@ -1,5 +1,10 @@
 const express = require('express');
-const { getLastPayment, setLastPayment, processPayments } = require('./helpers/utils');
+const {
+  getLastPayment,
+  setLastPayment,
+  processPayments,
+  processQueue,
+} = require('./helpers/utils');
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -60,3 +65,13 @@ const check = setInterval(() => {
 }, 1000 * 5);
 
 start();
+
+/** Process pending payments queue then wait 5 sec */
+const processQueueLoop = () => {
+  processQueue().then(
+    () => Promise.delay(5000).then(
+      () => processQueueLoop()
+    ));
+};
+
+processQueueLoop();

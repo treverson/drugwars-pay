@@ -11,129 +11,140 @@ const payPercentProd = parseFloat(process.env.PAYMENT_PERCENT_PROD) || 1;
 const payPercentBurn = parseFloat(process.env.PAYMENT_PERCENT_BURN) || 1;
 const memoProd = 'Here is your cut based on your drug production';
 const memoBurn = 'Heist! We got that for you';
-
-// redis.flushall();
+const maxOpsPerTx = parseFloat(process.env.MAX_OPS_PER_TX) || 2;
 
 const getLastPayment = () => redis.getAsync('last_payment');
 
 const setLastPayment = (date) => redis.setAsync('last_payment', date);
 
-const processPayments = () => {
-  return new Promise((resolve, reject) => {
-    const query = 'SELECT * FROM users ORDER BY drug_production_rate DESC; \n\
-      SELECT SUM(drug_production_rate) AS totalProd FROM users; \n\
-      SELECT * FROM heist ORDER BY drugs DESC; \n\
-      SELECT SUM(drugs) AS totalBurn FROM heist';
+const insertPendingPayments = (data) => new Promise((resolve, reject) => {
+  const query = 'INSERT INTO payments (username, type, amount) VALUES ?';
+  db.queryAsync(query, [data]).then(result => {
+    resolve(result);
+  }).catch(err => {
+    reject(err);
+  });
+});
 
-    Promise.all([
-      db.queryAsync(query),
-      client.database.getAccounts([username]),
-    ]).then(result => {
-      const daily = [];
-      const heist = [];
-      let body = '';
+const getPendingPayments = (totalProdPot, totalBurnPot) => new Promise((resolve, reject) => {
+  const data = [];
 
-      /** Create transfer ops based on prod rate */
-      body += '\n\n#### Here is the drug production rate payroll:\n\n';
-      const totalPotProd = parseFloat(result[1][0].balance) / 100 * payPercentProd;
-      const totalProd = result[0][1][0].totalProd;
-      let i = 0;
-      result[0][0].forEach(user => {
-        const amount = parseFloat(totalPotProd / totalProd * user.drug_production_rate).toFixed(3);
-        if (amount >= 0.001) {
-          i++;
-          body += `${i}. @${user.username} +${amount} STEEM \n`;
-          daily.push(['transfer', {
-            from: username,
-            to: user.username,
-            amount: `${amount} STEEM`,
-            memo: memoProd,
-          }]);
-        }
-      });
+  let query = 'SELECT * FROM users ORDER BY drug_production_rate DESC; ';
+  query += 'SELECT SUM(drug_production_rate) AS totalProd FROM users; ';
+  query += 'SELECT * FROM heist ORDER BY drugs DESC; ';
+  query += 'SELECT SUM(drugs) AS totalBurn FROM heist; ';
 
-      /** Create transfer ops based on heist */
-      body += '\n\n#### Here is the heist payroll:\n\n';
-      const totalBurnProd = parseFloat(result[1][0].balance) / 100 * payPercentBurn;
-      const totalBurn = result[0][3][0].totalBurn;
-      i = 0;
-      result[0][2].forEach(user => {
-        const amount = parseFloat(totalBurnProd / totalBurn * user.drugs).toFixed(3);
-        if (amount >= 0.001 && user.username) {
-          i++;
-          body += `${i}. @${user.username} +${amount} STEEM \n`;
-          heist.push(['transfer', {
-            from: username,
-            to: user.username,
-            amount: `${amount} STEEM`,
-            memo: memoBurn,
-          }]);
-        }
-      });
+  db.queryAsync(query).then(result => {
+    const [users, [{ totalProd }], burns, [{ totalBurn }]] = result;
 
-      /** Create post op */
-      const post = [['comment', {
-        parent_author: '',
-        parent_permlink: 'drugwars',
-        author: username,
-        permlink: `drugwars-pay-${new Date().getTime()}`,
-        title: 'DrugWars daily payroll',
-        body,
-        json_metadata: JSON.stringify({}),
-      }]];
-
-      if (pay) {
-        /** Broadcast transfers */
-        client.broadcast.sendOperations(daily, PrivateKey.fromString(privateKey)).then(result => {
-          console.log('Broadcast daily transfers done', result);
-
-          /** Broadcast transfers */
-          client.broadcast.sendOperations(heist, PrivateKey.fromString(privateKey)).then(result => {
-            console.log('Broadcast heist transfers done', result);
-
-            /** Broadcast post */
-            client.broadcast.sendOperations(post, PrivateKey.fromString(privateKey)).then(result => {
-              console.log('Broadcast post done', result);
-
-              /** Clear table heist */
-              db.queryAsync('TRUNCATE TABLE heist').then(result => {
-                console.log('Clear table done');
-                resolve();
-
-              }).catch((e) => {
-                console.error('Clear table heist failed', e);
-                reject();
-              })
-
-            }).catch(err => {
-              console.error('Broadcast post failed', err);
-              reject();
-            });
-
-          }).catch(err => {
-            console.error('Broadcast post failed', err);
-            reject();
-          });
-
-        }).catch(err => {
-          console.error('Broadcast transfers failed', err);
-          reject();
-        });
-
-      } else {
-        console.log('Payment disabled');
-        resolve();
+    users.forEach(user => {
+      const amount = parseFloat(totalProdPot / totalProd * user.drug_production_rate).toFixed(3);
+      if (amount >= 0.001) {
+        data.push([user.username, 'daily', amount]);
       }
+    });
 
-    }).catch(err => {
-      console.error('Process loading data failed', err);
+    burns.forEach(burn => {
+      const amount = parseFloat(totalBurnPot / totalBurn * burn.drugs).toFixed(3);
+      if (amount >= 0.001) {
+        data.push([burn.username, 'heist', amount]);
+      }
+    });
+
+    resolve(data);
+  }).catch(err => {
+    reject(err);
+  });
+});
+
+const storePendingPayments = () => new Promise((resolve, reject) => {
+  client.database.getAccounts([username]).then(accounts => {
+    const totalProdPot = parseFloat(accounts[0].balance) / 100 * payPercentProd;
+    const totalBurnPot = parseFloat(accounts[0].balance) / 100 * payPercentBurn;
+
+    getPendingPayments(totalProdPot, totalBurnPot).then(data => {
+      console.log(`1: Pending payments: ${data.length}`);
+
+      insertPendingPayments(data).then(result => {
+        console.log('2: Pending payments stored on db');
+        resolve();
+
+      }).catch((err) => {
+        console.error('Failed to store pending payments stored on db', err);
+        reject();
+      });
+    }).catch((err) => {
+      console.error('Failed to get pending payments', err);
       reject();
     });
+  }).catch((err) => {
+    console.error('Failed to load Steem account', err);
+    reject();
   });
-};
+});
+
+const processPayments = () => new Promise((resolve, reject) => {
+  storePendingPayments().then((result) => {
+    console.log('Process completed', result);
+    // Clear heist table
+    // Publish post
+    resolve();
+  }).catch(err => {
+    console.error('Process failed', err);
+    reject();
+  });
+});
+
+const processQueue = () => new Promise((resolve, reject) => {
+  const query = 'SELECT * FROM payments WHERE paid = ? ORDER BY id ASC LIMIT ?';
+  db.queryAsync(query, [0, maxOpsPerTx]).then(payments => {
+
+    if (payments && payments.length > 0) {
+      const ops = [];
+      const paymentsIds = [];
+
+      payments.forEach(payment => {
+        paymentsIds.push(payment.id);
+
+        ops.push(['transfer', {
+          from: username,
+          to: payment.username,
+          amount: `${payment.amount} STEEM`,
+          memo: payment.type === 'daily' ? memoProd : memoBurn
+        }]);
+      });
+
+      if (pay) {
+        client.broadcast.sendOperations(ops, PrivateKey.fromString(privateKey)).then(result => {
+          console.log('Broadcast transfers queue done', ops.length, JSON.stringify(result));
+
+          const query = 'UPDATE payments SET tx_id = ?, paid = ? WHERE id IN ?';
+          db.queryAsync(query, [result.id, 1, [paymentsIds]]).then(result => {
+            console.log('Update transfer status done', JSON.stringify(result));
+            resolve();
+
+          }).catch((err) => {
+            console.error('Update transfer status failed', err);
+            reject(err);
+          });
+        }).catch((err) => {
+          console.error('Broadcast transfer queue failed', err);
+          reject(err);
+        });
+      } else {
+        console.log('Payment skipped, but there is payments pending', ops.length);
+        resolve();
+      }
+    } else {
+      console.log('No pending payments');
+      resolve();
+    }
+  });
+});
 
 module.exports = {
   getLastPayment,
   setLastPayment,
   processPayments,
+  processQueue,
 };
