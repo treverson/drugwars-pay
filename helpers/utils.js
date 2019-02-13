@@ -128,7 +128,7 @@ const processQueue = () => new Promise((resolve, reject) => {
             reject(err);
           });
         }).catch((err) => {
-          console.error('Broadcast transfer queue failed', err);
+          console.error('Broadcast transfer queue failed', JSON.stringify(ops), err);
           reject(err);
         });
       } else {
