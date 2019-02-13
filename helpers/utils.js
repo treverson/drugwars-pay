@@ -109,7 +109,7 @@ const processQueue = () => new Promise((resolve, reject) => {
         ops.push(['transfer', {
           from: username,
           to: payment.username,
-          amount: `${payment.amount} STEEM`,
+          amount: `${payment.amount.toFixed(3)} STEEM`,
           memo: payment.type === 'daily' ? memoProd : memoBurn
         }]);
       });
